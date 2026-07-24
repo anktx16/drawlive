@@ -60,7 +60,7 @@ jobs:
             pnpm --filter @repo/db exec prisma migrate deploy
 
             echo "Reloading PM2 processes..."
-            pm2 reload ecosystem.config.js --update-env
+            pm2 restart all --update-env
             pm2 save
 
             echo "Deployment complete ✅"
