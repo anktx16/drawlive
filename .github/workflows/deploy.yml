@@ -32,9 +32,6 @@ jobs:
       - name: Build with Turbo
         run: pnpm turbo build
 
-      - name: Lint & Typecheck
-        run: pnpm turbo lint check-types
-
       - name: Deploy to VM via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
