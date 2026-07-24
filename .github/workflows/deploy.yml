@@ -41,7 +41,7 @@ jobs:
           script: |
             export NVM_DIR="$HOME/.nvm"
             export PATH="$NVM_DIR/versions/node/v24.13.0/bin:$PATH"
-            
+
             set -e
             cd drawlive
 
@@ -57,7 +57,7 @@ jobs:
 
             echo "Running Prisma migrations..."
             pnpm dlx prisma generate --schema=./packages/db/prisma/schema.prisma
-            pnpm dlx prisma migrate deploy --schema=./packages/db/prisma/schema.prisma
+            pnpm dlx prisma migrate deploy --schema=./packages/db/prisma/schema.prisma --env-file=./.env
 
             echo "Reloading PM2 processes..."
             pm2 reload ecosystem.config.js --update-env
