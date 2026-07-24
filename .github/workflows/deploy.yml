@@ -56,8 +56,8 @@ jobs:
             pnpm turbo build
 
             echo "Running Prisma migrations..."
-            pnpm dlx prisma generate --schema=./packages/db/prisma/schema.prisma
-            pnpm dlx prisma migrate deploy --schema=./packages/db/prisma/schema.prisma --env-file=./.env
+            pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
+            pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma
 
             echo "Reloading PM2 processes..."
             pm2 reload ecosystem.config.js --update-env
