@@ -26,8 +26,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (storedToken) {
       setToken(storedToken);
-      setLoading(false)
     }
+    setLoading(false)
   }, []);
 
   if(loading) {
