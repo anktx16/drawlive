@@ -1,159 +1,443 @@
-# Turborepo starter
+# DrawLive
 
-This Turborepo starter is maintained by the Turborepo core team.
+DrawLive is a real-time collaborative drawing platform built as a full-stack TypeScript application. It provides shared drawing rooms where multiple users can interact with the same canvas in real time.
 
-## Using this example
+The project is designed around a monorepo architecture and separates the frontend, HTTP API, WebSocket layer, shared packages, and database access into independently maintainable workspaces.
 
-Run the following command:
+## Overview
 
-```sh
-npx create-turbo@latest
+DrawLive combines a browser-based drawing interface with persistent application data and real-time event delivery.
+
+The application uses:
+
+- **Next.js / React** for the client application
+- **Node.js** for backend services
+- **WebSockets** for real-time collaboration
+- **PostgreSQL** for persistent data
+- **Prisma** for database access and migrations
+- **JWT** for authentication
+- **Turborepo + pnpm** for monorepo management
+
+## Core Capabilities
+
+- Real-time collaborative drawing rooms
+- Multi-user room support
+- Freehand drawing and canvas interactions
+- Text and shape-based drawing operations
+- Pan and zoom
+- Undo / redo
+- Geometric hit testing for object selection and erasing
+- JWT-based authentication
+- Persistent room and application data
+- REST APIs for application operations
+- WebSocket-based real-time synchronization
+- Shared packages managed through a Turborepo workspace
+
+## Architecture
+
+```text
+                         ┌─────────────────────────┐
+                         │       Next.js App        │
+                         │    apps/drawlive-fe      │
+                         └────────────┬────────────┘
+                                      │
+                         ┌────────────┴────────────┐
+                         │                         │
+                       HTTP                    WebSocket
+                         │                         │
+                         ▼                         ▼
+              ┌───────────────────┐     ┌───────────────────┐
+              │    HTTP Backend    │     │ WebSocket Service │
+              │ apps/http-backend  │     │      apps/ws      │
+              └─────────┬─────────┘     └─────────┬─────────┘
+                        │                         │
+                        └────────────┬────────────┘
+                                     │
+                                     ▼
+                              ┌─────────────┐
+                              │  @repo/db   │
+                              │    Prisma   │
+                              └──────┬──────┘
+                                     │
+                                     ▼
+                              ┌─────────────┐
+                              │ PostgreSQL  │
+                              └─────────────┘
 ```
 
-## What's inside?
+### Request Flow
 
-This Turborepo includes the following packages/apps:
+HTTP requests are used for operations that require request/response semantics, such as authentication and application data.
 
-### Apps and Packages
+WebSockets provide a persistent connection for real-time drawing events.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+```text
+Browser
+  │
+  ├── HTTP ────────────────► HTTP API ─────────► PostgreSQL
+  │
+  └── WebSocket ──────────► WS Service
+                              │
+                              └── broadcasts events
+                                  to connected clients
+```
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+This separation keeps conventional API operations independent from the real-time communication layer.
 
-### Utilities
+## Repository Structure
 
-This Turborepo has some additional tools already setup for you:
+```text
+drawlive/
+├── apps/
+│   ├── drawlive-fe/          # Next.js frontend
+│   ├── http-backend/         # HTTP / REST API
+│   └── ws/                   # WebSocket service
+│
+├── packages/
+│   ├── db/                   # Prisma schema and database client
+│   ├── backend-common/       # Shared backend configuration/utilities
+│   └── ...                   # Shared workspace packages
+│
+├── package.json              # Root workspace configuration
+├── pnpm-workspace.yaml       # pnpm workspace definition
+├── pnpm-lock.yaml
+└── turbo.json                # Turborepo pipeline configuration
+```
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+The repository is managed from the **root workspace**. Dependency installation, Turborepo commands, and lockfile management should therefore be performed from the repository root.
+
+## Technology Stack
+
+### Frontend
+
+| Technology | Purpose |
+|---|---|
+| Next.js | React application framework |
+| React | UI and client-side application logic |
+| TypeScript | Static typing |
+| Tailwind CSS | Styling |
+| Axios | HTTP communication |
+
+### Backend
+
+| Technology | Purpose |
+|---|---|
+| Node.js | Server-side runtime |
+| Express | HTTP API |
+| WebSockets | Real-time communication |
+| JWT | Authentication |
+| bcrypt | Password hashing |
+| Zod | Runtime validation |
+
+### Data Layer
+
+| Technology | Purpose |
+|---|---|
+| PostgreSQL | Relational database |
+| Prisma | ORM and schema management |
+| pg | PostgreSQL driver |
+| @prisma/adapter-pg | Prisma PostgreSQL adapter |
+
+### Tooling
+
+| Technology | Purpose |
+|---|---|
+| pnpm | Package management |
+| Turborepo | Monorepo orchestration |
+| Netlify | Frontend deployment |
+| Render | Backend deployment |
+| Neon | PostgreSQL hosting |
+
+## Getting Started
+
+### Prerequisites
+
+Install:
+
+- Node.js 24.x
+- pnpm 9.15.9
+- PostgreSQL or a PostgreSQL-compatible database
+
+Verify your environment:
+
+```bash
+node -v
+pnpm -v
+```
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/anktx16/drawlive.git
+cd drawlive
+```
+
+### Install Dependencies
+
+Run installation from the repository root:
+
+```bash
+pnpm install
+```
+
+For a reproducible installation:
+
+```bash
+pnpm install --frozen-lockfile
+```
+
+The workspace contains multiple applications and packages, so installing from an individual application directory is not the recommended workflow.
+
+## Environment Configuration
+
+Create the required environment variables for the services you are running.
+
+A typical local configuration includes:
+
+```env
+DATABASE_URL=your_postgresql_connection_string
+JWT_SECRET=your_jwt_secret
+
+NEXT_PUBLIC_HTTP_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3002
+```
+
+Production values should point to the deployed API and WebSocket services:
+
+```env
+NEXT_PUBLIC_HTTP_URL=https://your-api-domain
+NEXT_PUBLIC_WS_URL=wss://your-websocket-domain
+```
+
+Do not commit secrets or production environment files to the repository.
+
+## Database
+
+The database package is located at:
+
+```text
+packages/db
+```
+
+Prisma configuration and schema files are maintained inside the package:
+
+```text
+packages/db/
+├── prisma.config.ts
+└── prisma/
+    ├── schema.prisma
+    └── migrations/
+```
+
+Generate Prisma Client with:
+
+```bash
+pnpm --filter @repo/db exec prisma generate
+```
+
+Apply existing production migrations with:
+
+```bash
+pnpm --filter @repo/db exec prisma migrate deploy
+```
+
+The Prisma client is generated as part of the database package installation lifecycle.
+
+## Development
+
+Start the development environment from the repository root:
+
+```bash
+pnpm dev
+```
+
+Turborepo coordinates the development tasks across the workspace.
 
 ### Build
 
-To build all apps and packages, run the following command:
+Build all configured applications and packages:
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```bash
+pnpm turbo build
 ```
 
-Without global `turbo`, use your package manager:
+Build only the frontend:
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm dlx turbo build
-pnpm exec turbo build
+```bash
+pnpm turbo build --filter=drawlive-fe
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+Run the root build script:
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
+```bash
+pnpm build
 ```
 
-Without global `turbo`:
+### Lint
 
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+```bash
+pnpm lint
 ```
 
-### Develop
+### Type Checking
 
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
+```bash
+pnpm check-types
 ```
 
-Without global `turbo`, use your package manager:
+## Real-Time Collaboration
 
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
+The real-time layer is implemented using WebSockets.
+
+A simplified event flow looks like this:
+
+```text
+Client A
+   │
+   │ drawing event
+   ▼
+WebSocket Server
+   │
+   ├──────────────► Client B
+   ├──────────────► Client C
+   └──────────────► Client D
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+The WebSocket connection is kept open while the user is connected to a drawing room. Drawing operations can therefore be propagated to other connected clients without relying on repeated HTTP polling.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+In production, an HTTPS frontend should communicate with the WebSocket service over `wss://`.
 
-```sh
-turbo dev --filter=web
+## Drawing and Erasing
+
+DrawLive uses geometric hit testing to determine whether a pointer interaction intersects a drawing object.
+
+For example, freehand strokes can be evaluated using the distance between a point and a line segment. Shape-based elements can use bounding-box or geometry-based checks.
+
+This approach allows erasing to be based on the actual position and geometry of an object rather than simply removing the most recently created element.
+
+## Undo and Redo
+
+Drawing operations are represented as actions and maintained in application history.
+
+Conceptually:
+
+```text
+User Action
+    │
+    ▼
+History
+ ┌───────┐
+ │ Draw  │
+ │ Move  │
+ │ Erase │
+ │ Text  │
+ └───────┘
+    │
+    ├── Undo
+    └── Redo
 ```
 
-Without global `turbo`:
+This provides a predictable mechanism for navigating previous canvas operations.
 
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+## Authentication
+
+The application uses JWT-based authentication.
+
+The general flow is:
+
+```text
+Client
+  │
+  │ credentials
+  ▼
+HTTP API
+  │
+  │ validate credentials
+  ▼
+JWT
+  │
+  ▼
+Client
+  │
+  │ authenticated requests
+  ▼
+Protected API / WebSocket
 ```
 
-### Remote Caching
+Passwords are hashed with bcrypt before persistence rather than being stored as plain text.
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+## Production Deployment
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+The project is structured so that its major services can be deployed independently.
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+```text
+┌───────────────────────────────┐
+│           Frontend            │
+│            Netlify            │
+└───────────────┬───────────────┘
+                │
+                ├──────── HTTP ──────────► Backend
+                │                           Render
+                │
+                └────── WebSocket ────────► WS Service
+                                            Render
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
+                         Backend
+                            │
+                            ▼
+                         Neon DB
 ```
 
-Without global `turbo`, use your package manager:
+## Engineering Decisions
 
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
+### Monorepo
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+Turborepo keeps the frontend, backend services, database layer, and shared packages in a single repository while allowing individual workspaces to remain independently organized.
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+Benefits include:
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+- Shared TypeScript configuration
+- Shared packages
+- Consistent dependency management
+- Task orchestration through Turborepo
+- Incremental builds and caching
 
-```sh
-turbo link
-```
+### HTTP + WebSocket Separation
 
-Without global `turbo`:
+REST APIs and WebSockets solve different problems.
 
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
+HTTP is used for conventional application operations, while WebSockets are dedicated to low-latency event delivery. Keeping these concerns separate makes each service easier to reason about and deploy independently.
 
-## Useful Links
+### PostgreSQL + Prisma
 
-Learn more about the power of Turborepo:
+PostgreSQL provides the persistent relational data layer, while Prisma provides typed database access and schema/migration tooling.
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+
+## Project Goals
+
+DrawLive was built as a practical full-stack project focused on understanding and implementing:
+
+- Real-time systems
+- WebSocket communication
+- Full-stack TypeScript development
+- Authentication
+- Relational database design
+- Prisma
+- REST APIs
+- Monorepo architecture
+- Production deployment
+- Collaborative application design
+
+## Author
+
+**Ankit Yadav**
+
+B.Tech Computer Science & Engineering  
+Vivekananda Global University
+
+- GitHub: https://github.com/anktx16
+- Project: https://drawlive.netlify.app
+
+## License
+
+This project is intended as a personal portfolio and learning project.
