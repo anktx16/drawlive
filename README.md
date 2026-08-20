@@ -194,19 +194,16 @@ Create the required environment variables for the services you are running.
 
 A typical local configuration includes:
 
+root env:
 ```env
 DATABASE_URL=your_postgresql_connection_string
 JWT_SECRET=your_jwt_secret
-
-NEXT_PUBLIC_HTTP_URL=http://localhost:3001
-NEXT_PUBLIC_WS_URL=ws://localhost:3002
 ```
 
-Production values should point to the deployed API and WebSocket services:
-
+frontend env:
 ```env
-NEXT_PUBLIC_HTTP_URL=https://your-api-domain
-NEXT_PUBLIC_WS_URL=wss://your-websocket-domain
+NEXT_PUBLIC_HTTP_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3002
 ```
 
 Do not commit secrets or production environment files to the repository.
