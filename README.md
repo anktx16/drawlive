@@ -433,6 +433,7 @@ B.Tech Computer Science & Engineering
 Vivekananda Global University
 
 - GitHub: https://github.com/anktx16
+- LinkedIn: https://www.linkedin.com/in/ankit-yadav-55a93b27b/
 - Project: https://drawlive.netlify.app
 
 ## License
