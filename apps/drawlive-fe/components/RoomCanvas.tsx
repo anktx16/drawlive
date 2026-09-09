@@ -11,10 +11,24 @@ const RoomCanvas = ({slug, roomId}: {slug: string, roomId: string}) => {
   
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+    const configuredWsUrl = process.env.NEXT_PUBLIC_WS_URL;
     const strip = token?.replace(/^Bearer\s+/i, "");
 
-    if (!wsUrl || !strip) {
+    if (!configuredWsUrl || !strip) {
+      return;
+    }
+
+    let wsUrl: URL;
+    try {
+      wsUrl = new URL(configuredWsUrl);
+      if (wsUrl.protocol === "http:") wsUrl.protocol = "ws:";
+      if (wsUrl.protocol === "https:") wsUrl.protocol = "wss:";
+      // Browsers block insecure WebSockets from an HTTPS site. This also makes a
+      // mistakenly configured production `ws://` URL use the secure endpoint.
+      if (window.location.protocol === "https:" && wsUrl.protocol === "ws:") {
+        wsUrl.protocol = "wss:";
+      }
+    } catch {
       return;
     }
 
@@ -24,7 +38,8 @@ const RoomCanvas = ({slug, roomId}: {slug: string, roomId: string}) => {
     const connect = () => {
       if (disposed) return;
 
-      const ws = new WebSocket(`${wsUrl}?token=${encodeURIComponent(strip)}`);
+      wsUrl.searchParams.set("token", strip);
+      const ws = new WebSocket(wsUrl.toString());
       socketRef.current = ws;
 
     ws.onopen = () => {

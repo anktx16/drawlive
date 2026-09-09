@@ -16,6 +16,7 @@ interface User {
   socket: WebSocket;
   userId: string;
   rooms: string[];
+  isAlive: boolean;
 }
 
 const users: User[] = [];
@@ -45,6 +46,7 @@ wss.on("connection", (socket, request) => {
       socket,
       userId,
       rooms: [],
+      isAlive: true,
     });
 
     console.log(`User ${userId} connected`);
@@ -144,6 +146,11 @@ wss.on("connection", (socket, request) => {
     }
   });
 
+  socket.on("pong", () => {
+    const user = users.find((x) => x.socket === socket);
+    if (user) user.isAlive = true;
+  });
+
   // IMPORTANT: remove disconnected users
   socket.on("close", () => {
     const index = users.findIndex((user) => user.socket === socket);
@@ -161,3 +168,23 @@ wss.on("connection", (socket, request) => {
     console.error("WebSocket error:", error);
   });
 });
+
+// Keep connections alive through production load balancers and remove peers that
+// no longer respond, instead of retaining stale sockets indefinitely.
+const heartbeat = setInterval(() => {
+  users.forEach((user) => {
+    if (user.socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    if (!user.isAlive) {
+      user.socket.terminate();
+      return;
+    }
+
+    user.isAlive = false;
+    user.socket.ping();
+  });
+}, 30_000);
+
+wss.on("close", () => clearInterval(heartbeat));

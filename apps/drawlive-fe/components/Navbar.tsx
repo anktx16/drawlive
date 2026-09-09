@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/app/context/AuthContext"
 import { useRouter } from "next/navigation"
+import { LogOut } from "lucide-react"
 
 
 
@@ -21,8 +22,13 @@ const Navbar = () => {
                         Rooms
                     </button>
                     {isAuthenticated ? (
-                        <button onClick={handleLogOut} className="text-white font-semibold px-3 py-1 rounded-md bg-red-400 hover:bg-red-600 cursor-pointer transition-colors">
-                            Log out
+                        <button
+                            onClick={handleLogOut}
+                            title="Log out"
+                            className="inline-flex items-center gap-2 rounded-md border border-red-400/30 bg-red-500/10 px-3 py-1.5 text-red-200 hover:border-red-400/60 hover:bg-red-500/20 hover:text-white transition-colors cursor-pointer"
+                        >
+                            <LogOut size={15} />
+                            <span>Log out</span>
                         </button>
                     ) : (
                         <>
