@@ -26,7 +26,7 @@ wss.on("connection", (socket, request) => {
     const url = request.url;
 
     if (!url) {
-      socket.close();
+      socket.close(1008, "Unauthorized");
       return;
     }
 
@@ -36,7 +36,7 @@ wss.on("connection", (socket, request) => {
     const decoded = jwt.verify(token, JWT_SECRET!) as JwtPayload;
 
     if (!decoded.userId) {
-      socket.close();
+      socket.close(1008, "Unauthorized");
       return;
     }
 
@@ -52,7 +52,7 @@ wss.on("connection", (socket, request) => {
     console.log(`User ${userId} connected`);
   } catch (error) {
     console.error("WebSocket authentication error:", error);
-    socket.close();
+    socket.close(1008, "Unauthorized");
     return;
   }
 

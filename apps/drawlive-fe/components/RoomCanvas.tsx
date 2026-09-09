@@ -34,6 +34,8 @@ const RoomCanvas = ({slug, roomId}: {slug: string, roomId: string}) => {
 
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let disposed = false;
+    let hasConnected = false;
+    let retryAttempt = 0;
 
     const connect = () => {
       if (disposed) return;
@@ -44,6 +46,8 @@ const RoomCanvas = ({slug, roomId}: {slug: string, roomId: string}) => {
 
     ws.onopen = () => {
       if (disposed || socketRef.current !== ws) return;
+      hasConnected = true;
+      retryAttempt = 0;
       setConnectionError(null);
       setSocket(ws);
       ws.send(JSON.stringify({
@@ -57,15 +61,24 @@ const RoomCanvas = ({slug, roomId}: {slug: string, roomId: string}) => {
         setConnectionError("The drawing connection was interrupted. Reconnecting...");
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (socketRef.current === ws) {
           socketRef.current = null;
+          // Keep the last canvas mounted during a transient reconnect. Its drawing
+          // handlers safely ignore sends until the replacement socket is ready.
+          if (!hasConnected) setSocket(null);
+        }
+
+        if (event.code === 1008) {
           setSocket(null);
+          setConnectionError("Your drawing session was rejected. Please sign in again.");
+          return;
         }
 
         if (!disposed) {
           setConnectionError("The drawing connection was interrupted. Reconnecting...");
-          retryTimer = setTimeout(connect, 1000);
+          const retryDelay = Math.min(15_000, 1_000 * 2 ** retryAttempt++);
+          retryTimer = setTimeout(connect, retryDelay);
         }
       };
     };
@@ -98,8 +111,13 @@ const RoomCanvas = ({slug, roomId}: {slug: string, roomId: string}) => {
   }
 
 
-    return <div>
+    return <div className="relative">
        <Canvas slug={slug} roomId={roomId} socket={socket}/>
+       {connectionError && (
+         <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-md border border-amber-300/20 bg-black/80 px-3 py-2 text-xs text-amber-100 backdrop-blur-sm">
+           {connectionError}
+         </div>
+       )}
     </div>
 }
 
