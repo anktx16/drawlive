@@ -29,7 +29,19 @@ type Shape = {
     fontSize: number;
 }
 
+type EraseAction = {
+    type: "erase";
+    x: number;
+    y: number;
+    radius: number;
+}
+
+type DrawingAction = Shape | EraseAction;
+
 export class Game {
+
+    private static readonly ERASER_RADIUS = 18;
+    private static readonly ERASER_CURSOR = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' stroke='%23000000' stroke-width='1.5' d='m14.7 3.3 6 6a2 2 0 0 1 0 2.8l-7.6 7.6a2 2 0 0 1-2.8 0l-6-6a2 2 0 0 1 0-2.8l7.6-7.6a2 2 0 0 1 2.8 0Z'/%3E%3Cpath stroke='%23000000' stroke-width='1.5' d='m7.3 7.3 6 6'/%3E%3C/svg%3E") 12 12, auto`;
 
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
@@ -58,24 +70,129 @@ export class Game {
         this.initMouseHandler();
     }
 
-    setTool(tool: "circle" | "pencil" | "rect" | "eraser" | "line" | "text") {
+    setTool(tool: "pointer" | "circle" | "pencil" | "rect" | "eraser" | "line" | "text") {
         this.selectedTool = tool;
+        if (tool === "pointer") {
+            this.canvas.style.cursor = "grab";
+        } else if (tool !== "eraser") {
+            this.canvas.style.cursor = "crosshair";
+        }
     }
 
     async init() {
-        this.existingShapes = await getExistingShapes(this.slug)
+        try {
+            const actions = await getExistingShapes(this.slug);
+            actions.forEach((action: unknown) => {
+                if (this.isDrawingAction(action)) {
+                    this.applyAction(action);
+                }
+            });
+        } catch {}
         this.clearCanvas()
     }
 
     initHandlers() {
         this.socket.onmessage = (event) => {
-            const parsedData = JSON.parse(event.data);
+            try {
+                const parsedData = JSON.parse(event.data);
 
-            if (parsedData.type == "chat") {
-                const shapes = JSON.parse(parsedData.message);
-                this.existingShapes.push(shapes.shape)
-                this.clearCanvas()
-            }
+                if (parsedData.type === "chat" && typeof parsedData.message === "string") {
+                    const shapes = JSON.parse(parsedData.message);
+                    if (this.isDrawingAction(shapes.shape)) {
+                        this.applyAction(shapes.shape)
+                        this.clearCanvas()
+                    }
+                }
+            } catch {}
+        }
+    }
+
+    private getCanvasPoint(e: MouseEvent) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: (e.clientX - rect.left) * (this.canvas.width / rect.width),
+            y: (e.clientY - rect.top) * (this.canvas.height / rect.height),
+        };
+    }
+
+    private isDrawingAction(action: unknown): action is DrawingAction {
+        return !!action && typeof action === "object" && "type" in action;
+    }
+
+    private applyAction(action: DrawingAction) {
+        if (action.type === "erase") {
+            this.existingShapes = this.existingShapes.filter(
+                (shape) => !this.shapeTouchesEraser(shape, action),
+            );
+            return;
+        }
+
+        this.existingShapes.push(action);
+    }
+
+    private shapeTouchesEraser(shape: Shape, eraser: EraseAction) {
+        const distanceToSegment = (x1: number, y1: number, x2: number, y2: number) => {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const lengthSquared = dx * dx + dy * dy;
+            const t = lengthSquared === 0
+                ? 0
+                : Math.max(0, Math.min(1, ((eraser.x - x1) * dx + (eraser.y - y1) * dy) / lengthSquared));
+            return Math.hypot(eraser.x - (x1 + t * dx), eraser.y - (y1 + t * dy));
+        };
+
+        if (shape.type === "circle") {
+            return Math.hypot(eraser.x - shape.centerX, eraser.y - shape.centerY) <= shape.radius + eraser.radius;
+        }
+        if (shape.type === "rect") {
+            const left = Math.min(shape.x, shape.x + shape.width) - eraser.radius;
+            const right = Math.max(shape.x, shape.x + shape.width) + eraser.radius;
+            const top = Math.min(shape.y, shape.y + shape.height) - eraser.radius;
+            const bottom = Math.max(shape.y, shape.y + shape.height) + eraser.radius;
+            return eraser.x >= left && eraser.x <= right && eraser.y >= top && eraser.y <= bottom;
+        }
+        if (shape.type === "line") {
+            return distanceToSegment(shape.startX, shape.startY, shape.endX, shape.endY) <= eraser.radius + 1;
+        }
+        if (shape.type === "pencil") {
+            return shape.points.some((point, index) => {
+                const previous = shape.points[Math.max(0, index - 1)];
+                return distanceToSegment(previous.x, previous.y, point.x, point.y) <= eraser.radius + 1;
+            });
+        }
+
+        const width = this.ctx.measureText(shape.content).width || shape.content.length * shape.fontSize * 0.6;
+        return eraser.x >= shape.x - eraser.radius && eraser.x <= shape.x + width + eraser.radius
+            && eraser.y >= shape.y - eraser.radius && eraser.y <= shape.y + shape.fontSize + eraser.radius;
+    }
+
+    private updateEraserCursor(point: { x: number; y: number }) {
+        if (this.selectedTool !== "eraser") return;
+
+        const eraser: EraseAction = {
+            type: "erase",
+            x: point.x,
+            y: point.y,
+            radius: Game.ERASER_RADIUS,
+        };
+        const isOverShape = this.existingShapes.some((shape) => this.shapeTouchesEraser(shape, eraser));
+        this.canvas.style.cursor = isOverShape ? Game.ERASER_CURSOR : "crosshair";
+    }
+
+    private sendAction(action: DrawingAction) {
+        if (this.socket.readyState !== WebSocket.OPEN) {
+            return false;
+        }
+
+        try {
+            this.socket.send(JSON.stringify({
+                type: "chat",
+                message: JSON.stringify({ shape: action }),
+                roomId: this.roomId
+            }));
+            return true;
+        } catch {
+            return false;
         }
     }
 
@@ -83,6 +200,12 @@ export class Game {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
         this.ctx.fillStyle = "rgba(0, 0, 0)"
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+        // A new canvas context defaults to a black stroke. Set drawing styles before
+        // replaying history so pencil-only rooms are visible immediately on refresh.
+        this.ctx.strokeStyle = "rgba(255, 255, 255)"
+        this.ctx.lineWidth = 2;
+        this.ctx.lineJoin = "round";
+        this.ctx.lineCap = "round";
 
         this.existingShapes.map((shape) => {
             if (shape.type == "rect") {
@@ -100,6 +223,9 @@ export class Game {
                 this.ctx.stroke();
                 this.ctx.closePath()
             } else if (shape.type == "pencil") {
+                if (shape.points.length === 0) {
+                    return;
+                }
                 this.ctx.beginPath();
                 const pts = shape.points;
                 this.ctx.moveTo(pts[0].x, pts[0].y);
@@ -118,25 +244,40 @@ export class Game {
     }
 
     handleMouseDown = (e: MouseEvent) => {
+        const point = this.getCanvasPoint(e);
         this.clicked = true;
-        this.startX = e.clientX;
-        this.startY = e.clientY;
+        this.startX = point.x;
+        this.startY = point.y;
 
         if (this.selectedTool == "pencil") {
-            this.currentPencilPoints = [{ x: e.clientX, y: e.clientY }];
+            this.currentPencilPoints = [point];
         }
-        console.log("mousedown, tool =", this.selectedTool);
         if (this.selectedTool == "text") {
             e.preventDefault()
-            this.createTextInput(e.clientX, e.clientY);
+            this.createTextInput(point.x, point.y, e.clientX, e.clientY);
             return;
         }
     }
 
     handleMouseUp = (e: MouseEvent) => {
+        const point = this.getCanvasPoint(e);
         this.clicked = false;
-        const width = e.clientX - this.startX;
-        const height = e.clientY - this.startY;
+
+        if (this.selectedTool === "eraser") {
+            const eraseAction: EraseAction = {
+                type: "erase",
+                x: point.x,
+                y: point.y,
+                radius: Game.ERASER_RADIUS,
+            };
+            this.applyAction(eraseAction);
+            this.clearCanvas();
+            this.sendAction(eraseAction);
+            return;
+        }
+
+        const width = point.x - this.startX;
+        const height = point.y - this.startY;
         let shape: Shape | null = null;
         if (this.selectedTool == "rect") {
             shape = {
@@ -160,8 +301,8 @@ export class Game {
                 type: "line",
                 startX: this.startX,
                 startY: this.startY,
-                endX: e.clientX,
-                endY: e.clientY
+                endX: point.x,
+                endY: point.y
             }
         } else if (this.selectedTool == "pencil") {
             if (this.currentPencilPoints.length > 1) {
@@ -175,21 +316,19 @@ export class Game {
         if (!shape) {
             return;
         }
-        this.existingShapes.push(shape)
+        this.applyAction(shape)
 
-        this.socket.send(JSON.stringify({
-            type: "chat",
-            message: JSON.stringify({
-                shape
-            }),
-            roomId: this.roomId
-        }))
+        this.sendAction(shape);
+
     }
 
     handleMouseMove = (e: MouseEvent) => {
+        const point = this.getCanvasPoint(e);
+        this.updateEraserCursor(point);
+
         if (this.clicked) {
-            const width = e.clientX - this.startX;
-            const height = e.clientY - this.startY;
+            const width = point.x - this.startX;
+            const height = point.y - this.startY;
             this.clearCanvas();
             this.ctx.strokeStyle = "rgba(255, 255, 255)"
 
@@ -207,11 +346,11 @@ export class Game {
                 this.ctx.strokeStyle = "rgba(255, 255, 255)";
                 this.ctx.beginPath()
                 this.ctx.moveTo(this.startX, this.startY)
-                this.ctx.lineTo(e.clientX, e.clientY)
+                this.ctx.lineTo(point.x, point.y)
                 this.ctx.stroke()
                 this.ctx.closePath()
             } else if (this.selectedTool == "pencil") {
-                this.currentPencilPoints.push({ x: e.clientX, y: e.clientY });
+                this.currentPencilPoints.push(point);
 
                 this.ctx.strokeStyle = "rgba(255, 255, 255)";
                 this.ctx.lineWidth = 2;
@@ -230,13 +369,17 @@ export class Game {
         }
     }
 
-    createTextInput(x: number, y: number) {
+    handleMouseLeave = () => {
+        this.canvas.style.cursor = "default";
+    }
+
+    createTextInput(x: number, y: number, clientX: number, clientY: number) {
         const fontSize = 20;
 
         const input = document.createElement("textarea");
         input.style.position = "fixed";
-        input.style.left = `${x}px`;
-        input.style.top = `${y}px`;
+        input.style.left = `${clientX}px`;
+        input.style.top = `${clientY}px`;
         input.style.background = "transparent";
         input.style.border = "1px dashed rgba(255, 255, 255, 0.4)";
         input.style.outline = "none";
@@ -282,14 +425,10 @@ export class Game {
                 fontSize
             };
 
-            this.existingShapes.push(shape);
+            this.applyAction(shape);
             this.clearCanvas();
 
-            this.socket.send(JSON.stringify({
-                type: "chat",
-                message: JSON.stringify({ shape }),
-                roomId: this.roomId
-            }));
+            this.sendAction(shape);
         };
 
         input.addEventListener("blur", commit);
@@ -312,11 +451,13 @@ export class Game {
         this.canvas.addEventListener("mousedown", this.handleMouseDown);
         this.canvas.addEventListener("mouseup", this.handleMouseUp);
         this.canvas.addEventListener("mousemove", this.handleMouseMove);
+        this.canvas.addEventListener("mouseleave", this.handleMouseLeave);
     }
 
     destroy() {
         this.canvas.removeEventListener("mousedown", this.handleMouseDown);
         this.canvas.removeEventListener("mouseup", this.handleMouseUp);
         this.canvas.removeEventListener("mousemove", this.handleMouseMove);
+        this.canvas.removeEventListener("mouseleave", this.handleMouseLeave);
     }
 }

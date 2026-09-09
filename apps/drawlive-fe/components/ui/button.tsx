@@ -51,8 +51,8 @@ export default function Button({
     try {
       setLoading(true);
       await onClick();
-    } catch (err) {
-      console.error("Button onClick error:", err);
+    } catch {
+      // Individual button actions present their own user-facing failures.
     } finally {
       setLoading(false);
     }

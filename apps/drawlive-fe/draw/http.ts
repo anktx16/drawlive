@@ -14,10 +14,14 @@ export async function getExistingShapes(slug: string) {
     })
     const messages = response.data.chats;
 
-    const shapes = messages.map((x: { message: string }) => {
-        const messageData = JSON.parse(x.message)
-        return messageData.shape;
-    })
+    const shapes = messages.flatMap((x: { message: string }) => {
+        try {
+            const messageData = JSON.parse(x.message);
+            return messageData.shape ? [messageData.shape] : [];
+        } catch {
+            return [];
+        }
+    });
 
     return shapes;
 }

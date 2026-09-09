@@ -30,8 +30,8 @@ const Page = () => {
             try {
                 const res = await axios.get(`${process.env.NEXT_PUBLIC_HTTP_URL}/rooms`)
                 setRooms(res.data.response)
-            } catch (err) {
-                console.error("Failed to load rooms", err)
+            } catch {
+                setError("Failed to load rooms")
             } finally {
                 setLoading(false)
             }

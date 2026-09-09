@@ -11,7 +11,7 @@ const app = express();
 app.use(express.json())
 
 const allowedOrigins = [
-    "http:localhost:3000",
+    "http://localhost:3000",
     process.env.FRONTEND_URL
 ].filter(Boolean);
 
@@ -219,7 +219,11 @@ app.get("/api/chats/:slug",middleware, async (req, res) =>{
                 slug
             },
             include: {
-                chats: true
+                chats: {
+                    orderBy: {
+                        id: "asc"
+                    }
+                }
             }
         })
 

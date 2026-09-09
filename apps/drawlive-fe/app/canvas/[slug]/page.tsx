@@ -4,11 +4,8 @@ import { getRoomId } from "@/draw/http";
 export default async function CanvasPage({ params }: { params: { slug: string }}) {
    const slug = (await params).slug;
    const roomId = await getRoomId(slug)
-   console.log(roomId)
-   console.log(slug);
 
    return <div className="bg-black h-screen">
       <RoomCanvas slug={slug} roomId={roomId}/>
    </div>
 }
-
